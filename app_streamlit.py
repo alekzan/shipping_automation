@@ -278,11 +278,18 @@ def generate_shipping_labels(final_working_file, output_folder):
     filtered_df = filtered_df.sort_values(by="Número")
 
     csv_files = []  # Para almacenar tuplas (nombre_csv, contenido_csv)
+    caja_orders = []  # Para almacenar IDs de pedidos con "Alto Total" > 50
 
     # Chunk de 50 filas
     for i in range(0, len(filtered_df), 50):
         chunk = filtered_df.iloc[i : i + 50]
 
+        # Detectar pedidos con "Alto Total" > 50
+        caja_orders.extend(
+            chunk.loc[chunk["Alto Total"] > 50, "Id del pedido"].astype(str).tolist()
+        )
+
+        # Crear el DataFrame del CSV de guías
         shipping_df = pd.DataFrame(
             {
                 "pedido": chunk["Id del pedido"],
@@ -292,10 +299,6 @@ def generate_shipping_labels(final_working_file, output_folder):
                 "alto_paquete": chunk["Alto Total"].astype(int),
                 "ancho_paquete": chunk["Ancho Total"].astype(int),
                 "peso_paquete": chunk["Peso del paquete (s)"].astype(int),
-                "Empaque": [
-                    "CAJA" if alto > 50 else ""
-                    for alto in chunk["Alto Total"].astype(int)
-                ],
             }
         )
 
@@ -325,7 +328,13 @@ def generate_shipping_labels(final_working_file, output_folder):
         # Lo agregamos a nuestra lista de CSV a exportar
         csv_files.append((file_name, csv_content))
 
-    return csv_files
+    # Si hay pedidos con "Alto Total" > 50, creamos el contenido del archivo TXT
+    caja_txt_content = None
+    if caja_orders:
+        caja_txt_content = "Órdenes que requieren caja (Alto Total > 50):\n\n"
+        caja_txt_content += "\n".join(caja_orders)
+
+    return csv_files, caja_txt_content
 
 
 # =====================================================
@@ -396,7 +405,6 @@ def main():
         # -----------------------------------------------------
         # 3. Comenzamos el pipeline de generación en memoria
         # -----------------------------------------------------
-        # Creamos nombres temporales para cada paso
         file_1 = "1_archivo_de_trabajo.xlsx"
         file_2 = "2_archivo_de_trabajo.xlsx"
         file_3 = "3_archivo_de_trabajo.xlsx"
@@ -425,11 +433,9 @@ def main():
         # 4) calculate_package_weight
         calculate_package_weight(file_path=file_3, output_path=file_4)
 
-        # 5) generate_shipping_labels
-        #    - Aquí nos devuelve una lista de tuplas (filename, csv_content)
-        csv_files = generate_shipping_labels(
-            final_working_file=file_4,
-            output_folder="temp_folder_guias",  # No lo usaremos físicamente, solo por compatibilidad.
+        # 5) generate_shipping_labels (ahora también devuelve caja_txt_content)
+        csv_files, caja_txt_content = generate_shipping_labels(
+            final_working_file=file_4, output_folder="temp_folder_guias"
         )
 
         # -------------------------------------
@@ -445,8 +451,11 @@ def main():
 
             # Crear dentro del ZIP una carpeta "csv_guias" y agregar los CSV
             for csv_name, csv_content in csv_files:
-                # Podemos guardarlos en la carpeta "csv_guias/"
                 zf.writestr(f"csv_guias/{csv_name}", csv_content)
+
+            # Solo agregar el archivo TXT si hay pedidos con Alto Total > 50
+            if caja_txt_content:
+                zf.writestr("ordenes_con_cajas.txt", caja_txt_content)
 
         # Reseteamos el cursor del buffer
         zip_buffer.seek(0)
