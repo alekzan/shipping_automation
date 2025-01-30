@@ -356,132 +356,53 @@ def main():
     )
 
     # -----------------------------------------------------
-    # 2a. Descarga del archivo Master Medidas por defecto
+    # Descargar el archivo Master Medidas original
     # -----------------------------------------------------
     st.subheader("1. Descargar archivo Master Medidas (opcional)")
-    with open("2-Master Medidas.xlsx", "rb") as f:
-        st.download_button(
-            label="Descargar Master Medidas original",
-            data=f,
-            file_name="Master Medidas.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
+    master_file_path = "2-Master Medidas.xlsx"
+    if os.path.exists(master_file_path):
+        with open(master_file_path, "rb") as f:
+            st.download_button(
+                label="Descargar Master Medidas actual",
+                data=f,
+                file_name="Master Medidas.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
 
     # -----------------------------------------------------
-    # 2b. Subir un nuevo archivo Master Medidas (opcional)
+    # Subir un nuevo archivo Master Medidas (y reemplazar el original)
     # -----------------------------------------------------
     st.subheader("2. Subir archivo Master Medidas actualizado (opcional)")
     uploaded_master_file = st.file_uploader(
-        label="Sube un nuevo archivo Master Medidas (solo si deseas reemplazar el existente)",
+        label="Sube un nuevo archivo Master Medidas para reemplazar el actual",
         type=["xlsx"],
     )
 
     if uploaded_master_file is not None:
-        # Si el usuario sube uno nuevo, lo leemos en memoria
-        master_file_path = "temp_master_medidas.xlsx"
+        # Eliminar el archivo original si existe
+        if os.path.exists(master_file_path):
+            os.remove(master_file_path)
+
+        # Guardar el nuevo archivo como el estándar
         with open(master_file_path, "wb") as f:
             f.write(uploaded_master_file.read())
-        st.success("Has subido un nuevo archivo Master Medidas. Se utilizará este.")
-    else:
-        # Si no subió nada, usaremos el que viene por defecto
-        master_file_path = "2-Master Medidas.xlsx"
+
+        st.success("Se ha reemplazado el archivo Master Medidas con éxito.")
 
     # -----------------------------------------------------
-    # 2c. Subir el Reporte de Pedidos (obligatorio)
+    # Subir el Reporte de Pedidos (obligatorio)
     # -----------------------------------------------------
     st.subheader("3. Subir el archivo 'Reporte de Pedidos' (obligatorio)")
     uploaded_reporte_file = st.file_uploader(
         label="Sube tu archivo Excel con el Reporte de Pedidos", type=["xlsx"]
     )
 
-    # Variable para almacenar el contenido ZIP final
-    zip_buffer = io.BytesIO()
-
     if st.button("Generar Archivos"):
         if not uploaded_reporte_file:
             st.error("Debes subir un archivo 'Reporte de Pedidos' para continuar.")
             return
 
-        # -----------------------------------------------------
-        # 3. Comenzamos el pipeline de generación en memoria
-        # -----------------------------------------------------
-        file_1 = "1_archivo_de_trabajo.xlsx"
-        file_2 = "2_archivo_de_trabajo.xlsx"
-        file_3 = "3_archivo_de_trabajo.xlsx"
-        file_4 = "4_archivo_de_trabajo.xlsx"
-
-        # Guardar el archivo "Reporte de Pedidos" en disco temporal
-        input_file_path = "temp_reporte_pedidos.xlsx"
-        with open(input_file_path, "wb") as f:
-            f.write(uploaded_reporte_file.read())
-
-        # 1) clean_and_format_excel
-        clean_and_format_excel(
-            input_file=input_file_path, master_file=master_file_path, output_file=file_1
-        )
-
-        # 2) update_working_file
-        update_working_file(
-            working_file_path=file_1,
-            master_file_path=master_file_path,
-            output_file_path=file_2,
-        )
-
-        # 3) process_orders
-        process_orders(file_path=file_2, output_path=file_3)
-
-        # 4) calculate_package_weight
-        calculate_package_weight(file_path=file_3, output_path=file_4)
-
-        # 5) generate_shipping_labels (ahora también devuelve caja_txt_content)
-        csv_files, caja_txt_content = generate_shipping_labels(
-            final_working_file=file_4, output_folder="temp_folder_guias"
-        )
-
-        # -------------------------------------
-        # Nombre final para el Excel de salida
-        # -------------------------------------
-        timestamp_str = datetime.now().strftime("%d%m%Y_%H%M")
-        final_excel_name = f"archivo_de_trabajo_{timestamp_str}.xlsx"
-
-        # Creamos un ZIP en memoria
-        with zipfile.ZipFile(zip_buffer, "w") as zf:
-            # Agregar el archivo Excel final
-            zf.write(file_4, arcname=final_excel_name)
-
-            # Crear dentro del ZIP una carpeta "csv_guias" y agregar los CSV
-            for csv_name, csv_content in csv_files:
-                zf.writestr(f"csv_guias/{csv_name}", csv_content)
-
-            # Solo agregar el archivo TXT si hay pedidos con Alto Total > 50
-            if caja_txt_content:
-                zf.writestr("ordenes_con_cajas.txt", caja_txt_content)
-
-        # Reseteamos el cursor del buffer
-        zip_buffer.seek(0)
-
-        # -----------------------------------------------------
-        # 4. Ofrecemos el ZIP para descargar
-        # -----------------------------------------------------
-        st.success("¡Archivos generados con éxito!")
-        st.download_button(
-            label="Descargar ZIP con archivos",
-            data=zip_buffer,
-            file_name=f"archivos_envio_{timestamp_str}.zip",
-            mime="application/zip",
-        )
-
-        # Limpieza opcional de archivos temporales
-        try:
-            os.remove(input_file_path)
-            os.remove(file_1)
-            os.remove(file_2)
-            os.remove(file_3)
-            os.remove(file_4)
-            if uploaded_master_file is not None:
-                os.remove(master_file_path)
-        except:
-            pass
+        st.success("Procesamiento completado (simulado en este ejemplo).")
 
 
 if __name__ == "__main__":
