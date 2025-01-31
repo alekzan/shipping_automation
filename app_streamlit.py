@@ -117,7 +117,7 @@ def update_working_file(working_file_path, master_file_path, output_file_path):
     working_df = pd.read_excel(working_file_path, dtype={"Id del pedido": str})
     master_df = pd.read_excel(master_file_path, skiprows=1)
 
-    # Limpia nombre de columnas (por si vienen con espacios)
+    # Limpia nombre de columnas
     working_df.columns = working_df.columns.str.strip()
     master_df.columns = master_df.columns.str.strip()
 
@@ -140,7 +140,7 @@ def update_working_file(working_file_path, master_file_path, output_file_path):
             ancho = matched_row.iloc[0]["ALTO (cm)"]  # Ancho = ALTO (cm)
             largo = matched_row.iloc[0]["LARGO (cm)"]
 
-            # Actualiza columnas (ojo: multiplicamos "alto" por la cantidad)
+            # Actualiza columnas (multiplicamos "alto" por la cantidad)
             working_df.at[index, "Alto del paquete (s)"] = alto * cantidad
             working_df.at[index, "Largo del paquete (s)"] = largo
             working_df.at[index, "Ancho del paquete (s)"] = ancho
@@ -246,7 +246,6 @@ def calculate_package_weight(file_path, output_path):
         elif num_products in [2, 3] and peso_real < 3:
             df.loc[group.index[0], "Peso del paquete (s)"] = 3
         else:
-            # Para otros casos, aproximar al peso volumétrico
             if not pd.isna(df.loc[group.index[0], "Peso volumétrico"]):
                 peso_volumetrico_local = df.loc[group.index[0], "Peso volumétrico"]
                 peso_del_paquete = int(
@@ -277,10 +276,10 @@ def generate_shipping_labels(final_working_file, output_folder):
     # Ordenar por "Número"
     filtered_df = filtered_df.sort_values(by="Número")
 
-    csv_files = []  # Para almacenar tuplas (nombre_csv, contenido_csv)
-    caja_orders = []  # Para almacenar IDs de pedidos con "Alto Total" > 50
+    csv_files = []  # Lista de tuplas (nombre_csv, contenido_csv)
+    caja_orders = []  # IDs de pedidos con "Alto Total" > 50
 
-    # Chunk de 50 filas
+    # Chunk de 50 filas por archivo
     for i in range(0, len(filtered_df), 50):
         chunk = filtered_df.iloc[i : i + 50]
 
@@ -289,7 +288,6 @@ def generate_shipping_labels(final_working_file, output_folder):
             chunk.loc[chunk["Alto Total"] > 50, "Id del pedido"].astype(str).tolist()
         )
 
-        # Crear el DataFrame del CSV de guías
         shipping_df = pd.DataFrame(
             {
                 "pedido": chunk["Id del pedido"],
@@ -325,10 +323,10 @@ def generate_shipping_labels(final_working_file, output_folder):
         shipping_df.to_csv(csv_buffer, index=False)
         csv_content = csv_buffer.getvalue()
 
-        # Lo agregamos a nuestra lista de CSV a exportar
+        # Agregar a la lista
         csv_files.append((file_name, csv_content))
 
-    # Si hay pedidos con "Alto Total" > 50, creamos el contenido del archivo TXT
+    # Crear archivo TXT si hay pedidos con "Alto Total" > 50
     caja_txt_content = None
     if caja_orders:
         caja_txt_content = "Órdenes que requieren caja (Alto Total > 50):\n\n"
@@ -343,21 +341,19 @@ def generate_shipping_labels(final_working_file, output_folder):
 
 
 def main():
-    st.title("Generador de archivos de Envío - Olimba (Ejemplo)")
+    st.title("Generador de archivos de Envío - Olimba")
 
     st.markdown(
         """
     **Instrucciones**  
     1. (Opcional) Descarga el archivo **Master Medidas** si deseas revisarlo.  
-    2. (Opcional) Carga una versión actualizada de **Master Medidas** si lo necesitas.  
+    2. (Opcional) Carga una versión actualizada de **Master Medidas** si lo necesitas (esto **eliminará** el Master actual).  
     3. **Sube** el archivo **Reporte de Pedidos** (obligatorio).  
     4. Presiona **Generar Archivos** para obtener el ZIP con el Excel final y los CSV de guías.  
     """
     )
 
-    # -----------------------------------------------------
-    # Descargar el archivo Master Medidas original
-    # -----------------------------------------------------
+    # 1) Descarga del archivo Master Medidas si existe
     st.subheader("1. Descargar archivo Master Medidas (opcional)")
     master_file_path = "2-Master Medidas.xlsx"
     if os.path.exists(master_file_path):
@@ -369,9 +365,7 @@ def main():
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
 
-    # -----------------------------------------------------
-    # Subir un nuevo archivo Master Medidas (y reemplazar el original)
-    # -----------------------------------------------------
+    # 2) Subir un nuevo archivo Master Medidas (reemplaza el existente)
     st.subheader("2. Subir archivo Master Medidas actualizado (opcional)")
     uploaded_master_file = st.file_uploader(
         label="Sube un nuevo archivo Master Medidas para reemplazar el actual",
@@ -383,26 +377,102 @@ def main():
         if os.path.exists(master_file_path):
             os.remove(master_file_path)
 
-        # Guardar el nuevo archivo como el estándar
+        # Guardar el nuevo archivo con el nombre estándar
         with open(master_file_path, "wb") as f:
             f.write(uploaded_master_file.read())
 
         st.success("Se ha reemplazado el archivo Master Medidas con éxito.")
 
-    # -----------------------------------------------------
-    # Subir el Reporte de Pedidos (obligatorio)
-    # -----------------------------------------------------
+    # 3) Subir Reporte de Pedidos (obligatorio)
     st.subheader("3. Subir el archivo 'Reporte de Pedidos' (obligatorio)")
     uploaded_reporte_file = st.file_uploader(
         label="Sube tu archivo Excel con el Reporte de Pedidos", type=["xlsx"]
     )
 
+    # Buffer para el ZIP final
+    zip_buffer = io.BytesIO()
+
+    # Botón para generar
     if st.button("Generar Archivos"):
         if not uploaded_reporte_file:
             st.error("Debes subir un archivo 'Reporte de Pedidos' para continuar.")
             return
 
-        st.success("Procesamiento completado (simulado en este ejemplo).")
+        # -----------------------------------------------------
+        # Pipeline de generación en memoria
+        # -----------------------------------------------------
+        file_1 = "1_archivo_de_trabajo.xlsx"
+        file_2 = "2_archivo_de_trabajo.xlsx"
+        file_3 = "3_archivo_de_trabajo.xlsx"
+        file_4 = "4_archivo_de_trabajo.xlsx"
+
+        # Guardar el archivo "Reporte de Pedidos" en disco temporal
+        input_file_path = "temp_reporte_pedidos.xlsx"
+        with open(input_file_path, "wb") as f:
+            f.write(uploaded_reporte_file.read())
+
+        # 1) clean_and_format_excel
+        clean_and_format_excel(
+            input_file=input_file_path, master_file=master_file_path, output_file=file_1
+        )
+
+        # 2) update_working_file
+        update_working_file(
+            working_file_path=file_1,
+            master_file_path=master_file_path,
+            output_file_path=file_2,
+        )
+
+        # 3) process_orders
+        process_orders(file_path=file_2, output_path=file_3)
+
+        # 4) calculate_package_weight
+        calculate_package_weight(file_path=file_3, output_path=file_4)
+
+        # 5) generate_shipping_labels (devuelve CSVs y posible TXT)
+        csv_files, caja_txt_content = generate_shipping_labels(
+            final_working_file=file_4,
+            output_folder="temp_folder_guias",  # No se usa, pero se mantiene por compatibilidad
+        )
+
+        # Nombre final para el Excel de salida
+        timestamp_str = datetime.now().strftime("%d%m%Y_%H%M")
+        final_excel_name = f"archivo_de_trabajo_{timestamp_str}.xlsx"
+
+        # Crear ZIP en memoria
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            # Agregar el archivo Excel final
+            zf.write(file_4, arcname=final_excel_name)
+
+            # Agregar CSVs en carpeta "csv_guias"
+            for csv_name, csv_content in csv_files:
+                zf.writestr(f"csv_guias/{csv_name}", csv_content)
+
+            # Agregar archivo TXT solo si hay pedidos con Alto Total > 50
+            if caja_txt_content:
+                zf.writestr("ordenes_con_cajas.txt", caja_txt_content)
+
+        # Regresar el cursor del buffer a 0
+        zip_buffer.seek(0)
+
+        # Descargar ZIP
+        st.success("¡Archivos generados con éxito!")
+        st.download_button(
+            label="Descargar ZIP con archivos",
+            data=zip_buffer,
+            file_name=f"archivos_envio_{timestamp_str}.zip",
+            mime="application/zip",
+        )
+
+        # Limpieza de archivos temporales (opcional)
+        try:
+            os.remove(input_file_path)
+            os.remove(file_1)
+            os.remove(file_2)
+            os.remove(file_3)
+            os.remove(file_4)
+        except:
+            pass
 
 
 if __name__ == "__main__":
