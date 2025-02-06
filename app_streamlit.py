@@ -60,9 +60,14 @@ def clean_and_format_excel(input_file, master_file, output_file):
     def extract_sku(sku_offer):
         if not isinstance(sku_offer, str):
             return None
-        for sku in master_skus:
+
+        # Sort master SKUs by length (longest first) to prevent partial matches
+        sorted_skus = sorted(master_skus, key=len, reverse=True)
+
+        for sku in sorted_skus:
             if sku_offer.lower().startswith(sku.lower()):
-                return sku
+                return sku  # Return the first (longest) match found
+
         return None
 
     # Inserta la nueva columna "SKU"
