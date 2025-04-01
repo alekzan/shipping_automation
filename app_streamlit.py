@@ -360,7 +360,7 @@ def main():
 
     # 1) Descarga del archivo Master Medidas si existe
     st.subheader("1. Descargar archivo Master Medidas (opcional)")
-    master_file_path = "master_1_abril_2025"  # Previamente: "2-Master Medidas.xlsx"
+    master_file_path = "master_1_abril_2025.xlsx"  # Previamente: "2-Master Medidas.xlsx"
     if os.path.exists(master_file_path):
         with open(master_file_path, "rb") as f:
             st.download_button(
