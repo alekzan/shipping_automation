@@ -164,6 +164,7 @@ def update_working_file(working_file_path, master_file_path, output_file_path):
         print("Todos los SKUs se encontraron y se procesaron correctamente.")
 
     print(f"Archivo de trabajo actualizado y guardado en {output_file_path}")
+    return unmatched_skus
 
 
 def process_orders(file_path, output_path):
@@ -360,7 +361,8 @@ def main():
 
     # 1) Descarga del archivo Master Medidas si existe
     st.subheader("1. Descargar archivo Master Medidas (opcional)")
-    master_file_path = "master_1_abril_2025.xlsx"  # Previamente: "2-Master Medidas.xlsx"
+    master_file_path = "6-junio-2025-master.xlsx" # "master_1_abril_2025.xlsx"   Previamente: "2-Master Medidas.xlsx"
+    st.write(f"El archivo máster cargado actualmente es {master_file_path}")
     if os.path.exists(master_file_path):
         with open(master_file_path, "rb") as f:
             st.download_button(
@@ -422,11 +424,15 @@ def main():
         )
 
         # 2) update_working_file
-        update_working_file(
+        unmatched_skus = update_working_file(
             working_file_path=file_1,
             master_file_path=master_file_path,
             output_file_path=file_2,
         )
+        if unmatched_skus:
+            st.warning(
+                f"Los siguientes SKUs no se encontraron en el archivo maestro: {set(unmatched_skus)}"
+            )
 
         # 3) process_orders
         process_orders(file_path=file_2, output_path=file_3)
